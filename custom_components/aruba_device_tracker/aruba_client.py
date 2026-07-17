@@ -24,6 +24,9 @@ _LOGGER = logging.getLogger(__name__)
 # Debian/Ubuntu-based hosts running OpenSSL 3.x.
 _LEGACY_TLS_MARKER = "UNSAFE_LEGACY_RENEGOTIATION_DISABLED"
 
+# How many characters of a bad response body to include in debug logs.
+_DEBUG_BODY_SNIPPET_LEN = 300
+
 # Parses each client row from 'show clients' output.
 #
 # Columns: Name IP MAC OS ESSID AccessPoint Channel Type Role IPv6 Signal Speed
@@ -65,6 +68,22 @@ _SKIP_PREFIXES = (
     "number of",
     "info timestamp",
 )
+
+
+def _log_bad_response_debug(cmd: str, resp: requests.Response) -> None:
+    """Log diagnostic details for a response that failed JSON decoding."""
+    content_length = resp.headers.get("Content-Length", "unknown")
+    body_len = len(resp.content) if resp.content is not None else 0
+    snippet = resp.text[:_DEBUG_BODY_SNIPPET_LEN] if resp.text else "<empty body>"
+    _LOGGER.debug(
+        "Aruba IAP bad response debug for cmd '%s': status_code=%s "
+        "content-length header=%s actual body bytes=%d body snippet=%r",
+        cmd,
+        resp.status_code,
+        content_length,
+        body_len,
+        snippet,
+    )
 
 
 class _LegacyTLSAdapter(HTTPAdapter):
@@ -164,6 +183,7 @@ class ArubaIAPClient:
         """Login and store the session ID. Returns True on success."""
         url = f"{self.base_url}/login"
         payload = json.dumps({"user": self.username, "passwd": self.password})
+        resp: requests.Response | None = None
         try:
             resp = self._session_request(
                 "post",
@@ -190,6 +210,8 @@ class ArubaIAPClient:
                 "Aruba IAP login returned an invalid response from %s",
                 self.host,
             )
+            if resp is not None:
+                _log_bad_response_debug("login", resp)
             return False
         except Exception:
             _LOGGER.exception("Aruba IAP login failed unexpectedly")
@@ -238,6 +260,7 @@ class ArubaIAPClient:
         )
 
         output: str | None = None
+        resp: requests.Response | None = None
         try:
             resp = self._session_request(
                 "get",
@@ -283,6 +306,8 @@ class ArubaIAPClient:
                 "(AP may be busy or session dropped) — will retry next poll",
                 cmd,
             )
+            if resp is not None:
+                _log_bad_response_debug(cmd, resp)
             self._sid = None
         except requests.exceptions.Timeout:
             _LOGGER.warning(
