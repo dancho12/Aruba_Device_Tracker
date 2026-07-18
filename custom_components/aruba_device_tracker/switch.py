@@ -7,14 +7,12 @@ from typing import TYPE_CHECKING, Any
 
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.helpers import entity_registry as er
-from homeassistant.helpers.entity import DeviceInfo
 
 from .const import (
     CONF_CLEANUP_ENABLED,
     CONF_TRACK_NEW,
     DEFAULT_CLEANUP_ENABLED,
     DEFAULT_TRACK_NEW,
-    DOMAIN,
 )
 from .utils import get_device_info
 

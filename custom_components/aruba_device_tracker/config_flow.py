@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from datetime import timedelta
 from typing import Any
 
 import voluptuous as vol
@@ -181,12 +182,18 @@ class ArubaIAPOptionsFlow(config_entries.OptionsFlow):
                     errors["base"] = error_key
 
             if not errors:
-                # Split into data (connection, requires reload) and options (live settings).
-                # This prevents the options form from shadowing live entity edits via the
-                # Number/Switch entities, which write directly to options. If the form ever
-                # wrote track_new/scan_interval/cleanup to data, entry.options would
-                # permanently shadow those writes (all read sites check options first), and
-                # form edits would become invisible.
+                # data holds connection fields only; options holds everything
+                # runtime-changeable. Options here are written via async_update_entry
+                # directly rather than via the return self.async_create_entry(...)
+                # auto-options mechanism, so both dicts land in one call. Keeping
+                # data scoped to connection fields (instead of also duplicating
+                # track_new/scan_interval/cleanup into it, as before) avoids a
+                # stale, unused copy of those settings sitting in entry.data.
+                old_scan_interval = current_options.get(
+                    CONF_SCAN_INTERVAL,
+                    current.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL),
+                )
+
                 data_update = {
                     CONF_HOST: host,
                     CONF_USERNAME: username,
@@ -211,6 +218,20 @@ class ArubaIAPOptionsFlow(config_entries.OptionsFlow):
                             self.config_entry.entry_id
                         )
                     )
+                elif scan_interval != old_scan_interval:
+                    # track_new/cleanup_enabled/cleanup_days are read live from
+                    # entry.options on every access, so they apply immediately.
+                    # The coordinator's poll timer does not re-read entry.options
+                    # on its own — it must be told explicitly, same as the Poll
+                    # Interval number entity already does.
+                    coordinator = self.config_entry.runtime_data
+                    if coordinator is not None:
+                        coordinator.update_interval = timedelta(seconds=scan_interval)
+                        LOGGER.debug(
+                            "Aruba Device Tracker poll interval updated to %ds"
+                            " via options form",
+                            scan_interval,
+                        )
 
                 return self.async_abort(reason="reconfigure_successful")
 

@@ -7,14 +7,12 @@ from datetime import timedelta
 from typing import TYPE_CHECKING
 
 from homeassistant.components.number import NumberEntity, NumberMode
-from homeassistant.helpers.entity import DeviceInfo
 
 from .const import (
     CONF_CLEANUP_DAYS,
     CONF_SCAN_INTERVAL,
     DEFAULT_CLEANUP_DAYS,
     DEFAULT_SCAN_INTERVAL,
-    DOMAIN,
     MAX_CLEANUP_DAYS,
     MAX_SCAN_INTERVAL,
     MIN_CLEANUP_DAYS,

@@ -58,6 +58,9 @@
       "invalid_auth": "Login failed with the new credentials.",
       "api_access_denied": "Login succeeded but the account cannot run API commands. Use a full-privilege management account.",
       "unknown": "Unexpected error. Check the Home Assistant logs."
+    },
+    "abort": {
+      "reconfigure_successful": "Settings saved."
     }
   }
 }

@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
-from homeassistant.config_entries import ConfigEntry
+from typing import TYPE_CHECKING
+
 from homeassistant.helpers.entity import DeviceInfo
 
 from .const import DOMAIN
+
+if TYPE_CHECKING:
+    from homeassistant.config_entries import ConfigEntry
 
 
 def get_device_info(entry: ConfigEntry) -> DeviceInfo:
