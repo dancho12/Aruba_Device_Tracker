@@ -1,0 +1,3 @@
+Name           IP              MAC                OS       ESSID     AccessPoint  Channel  Type      Role    IPv6  Signal  Speed
+----------------------------------
+               192.168.1.70    aa:bb:cc:dd:ee:04  Linux    HomeNet   ap1          6        Wireless  Access  --    40      54M

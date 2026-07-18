@@ -1,0 +1,7 @@
+Client List
+----------------------------------
+Name           IP              MAC                OS       ESSID     AccessPoint  Channel  Type      Role    IPv6  Signal  Speed
+----------------------------------
+Kitchen Echo   192.168.1.50    aa:bb:cc:dd:ee:01  Android  HomeNet   ap1          6        Wireless  Access  --    54      130M
+johns-phone    192.168.1.51    aa-bb-cc-dd-ee-02  iOS      HomeNet   ap1          6        Wireless  Access  --    62      866M
+Total Clients:2
