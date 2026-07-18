@@ -181,33 +181,38 @@ class ArubaIAPOptionsFlow(config_entries.OptionsFlow):
                     errors["base"] = error_key
 
             if not errors:
+                # Split into data (connection, requires reload) and options (live settings).
+                # This prevents the options form from shadowing live entity edits via the
+                # Number/Switch entities, which write directly to options. If the form ever
+                # wrote track_new/scan_interval/cleanup to data, entry.options would
+                # permanently shadow those writes (all read sites check options first), and
+                # form edits would become invisible.
+                data_update = {
+                    CONF_HOST: host,
+                    CONF_USERNAME: username,
+                    CONF_PASSWORD: password,
+                }
+                options_update = {
+                    CONF_TRACK_NEW: track_new,
+                    CONF_SCAN_INTERVAL: scan_interval,
+                    CONF_CLEANUP_ENABLED: cleanup_enabled,
+                    CONF_CLEANUP_DAYS: cleanup_days,
+                }
+
                 self.hass.config_entries.async_update_entry(
                     self.config_entry,
-                    data={
-                        CONF_HOST: host,
-                        CONF_USERNAME: username,
-                        CONF_PASSWORD: password,
-                        CONF_TRACK_NEW: track_new,
-                        CONF_SCAN_INTERVAL: scan_interval,
-                        CONF_CLEANUP_ENABLED: cleanup_enabled,
-                        CONF_CLEANUP_DAYS: cleanup_days,
-                    },
+                    data=data_update,
+                    options=options_update,
                 )
+
                 if connection_changed:
                     self.hass.async_create_task(
                         self.hass.config_entries.async_reload(
                             self.config_entry.entry_id
                         )
                     )
-                return self.async_create_entry(
-                    title="",
-                    data={
-                        CONF_TRACK_NEW: track_new,
-                        CONF_SCAN_INTERVAL: scan_interval,
-                        CONF_CLEANUP_ENABLED: cleanup_enabled,
-                        CONF_CLEANUP_DAYS: cleanup_days,
-                    },
-                )
+
+                return self.async_abort(reason="reconfigure_successful")
 
         return self.async_show_form(
             step_id="init",
