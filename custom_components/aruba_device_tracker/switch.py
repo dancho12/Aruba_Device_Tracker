@@ -16,6 +16,7 @@ from .const import (
     DEFAULT_TRACK_NEW,
     DOMAIN,
 )
+from .utils import get_device_info
 
 if TYPE_CHECKING:
     from homeassistant.config_entries import ConfigEntry
@@ -23,16 +24,6 @@ if TYPE_CHECKING:
     from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 LOGGER = logging.getLogger(__name__)
-
-
-def _device_info(entry: ConfigEntry) -> DeviceInfo:
-    """Shared DeviceInfo for the IAP control device."""
-    return DeviceInfo(
-        identifiers={(DOMAIN, entry.entry_id)},
-        name=f"Aruba IAP ({entry.data.get('host', '')})",
-        manufacturer="Aruba Networks (HPE)",
-        model="Instant AP",
-    )
 
 
 async def async_setup_entry(
@@ -71,7 +62,7 @@ class ArubaTrackNewSwitch(SwitchEntity):
         self._entry = entry
         self._attr_unique_id = f"{entry.entry_id}_track_new_devices"
         self._attr_name = "Track New Devices"
-        self._attr_device_info = _device_info(entry)
+        self._attr_device_info = get_device_info(entry)
 
     @property
     def is_on(self) -> bool:
@@ -147,7 +138,7 @@ class ArubaCleanupSwitch(SwitchEntity):
         self._entry = entry
         self._attr_unique_id = f"{entry.entry_id}_cleanup_enabled"
         self._attr_name = "Auto-Remove Stale Devices"
-        self._attr_device_info = _device_info(entry)
+        self._attr_device_info = get_device_info(entry)
 
     @property
     def is_on(self) -> bool:
