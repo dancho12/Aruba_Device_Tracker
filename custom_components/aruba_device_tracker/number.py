@@ -20,6 +20,7 @@ from .const import (
     MIN_CLEANUP_DAYS,
     MIN_SCAN_INTERVAL,
 )
+from .utils import get_device_info
 
 if TYPE_CHECKING:
     from homeassistant.config_entries import ConfigEntry
@@ -29,16 +30,6 @@ if TYPE_CHECKING:
     from . import ArubaIAPCoordinator
 
 LOGGER = logging.getLogger(__name__)
-
-
-def _device_info(entry: ConfigEntry) -> DeviceInfo:
-    """Shared DeviceInfo for the IAP control device."""
-    return DeviceInfo(
-        identifiers={(DOMAIN, entry.entry_id)},
-        name=f"Aruba IAP ({entry.data.get('host', '')})",
-        manufacturer="Aruba Networks (HPE)",
-        model="Instant AP",
-    )
 
 
 async def async_setup_entry(
@@ -76,7 +67,7 @@ class ArubaPollIntervalNumber(NumberEntity):
         self._entry = entry
         self._attr_unique_id = f"{entry.entry_id}_poll_interval"
         self._attr_name = "Poll Interval"
-        self._attr_device_info = _device_info(entry)
+        self._attr_device_info = get_device_info(entry)
 
     @property
     def native_value(self) -> float:
@@ -123,7 +114,7 @@ class ArubaCleanupDaysNumber(NumberEntity):
         self._entry = entry
         self._attr_unique_id = f"{entry.entry_id}_cleanup_days"
         self._attr_name = "Auto-Remove Stale Devices After"
-        self._attr_device_info = _device_info(entry)
+        self._attr_device_info = get_device_info(entry)
 
     @property
     def native_value(self) -> float:
