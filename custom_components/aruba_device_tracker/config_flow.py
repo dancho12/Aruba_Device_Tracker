@@ -61,7 +61,7 @@ class ArubaIAPConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
-    ) -> config_entries.FlowResult:
+    ) -> config_entries.ConfigFlowResult:
         """Handle the initial user step — connection details."""
         errors: dict[str, str] = {}
 
@@ -104,7 +104,7 @@ class ArubaIAPConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_step_tracking(
         self, user_input: dict[str, Any] | None = None
-    ) -> config_entries.FlowResult:
+    ) -> config_entries.ConfigFlowResult:
         """Handle step 2 — tracking and polling preferences."""
         if user_input is not None:
             data = {
@@ -155,7 +155,7 @@ class ArubaIAPOptionsFlow(config_entries.OptionsFlow):
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
-    ) -> config_entries.FlowResult:
+    ) -> config_entries.ConfigFlowResult:
         """Manage the options form."""
         errors: dict[str, str] = {}
         current = self.config_entry.data
@@ -212,6 +212,16 @@ class ArubaIAPOptionsFlow(config_entries.OptionsFlow):
                     options=options_update,
                 )
 
+                LOGGER.debug(
+                    "Aruba Device Tracker options updated via options form: "
+                    "track_new=%s, scan_interval=%ds, cleanup_enabled=%s, "
+                    "cleanup_days=%d",
+                    track_new,
+                    scan_interval,
+                    cleanup_enabled,
+                    cleanup_days,
+                )
+
                 if connection_changed:
                     self.hass.async_create_task(
                         self.hass.config_entries.async_reload(
@@ -219,19 +229,9 @@ class ArubaIAPOptionsFlow(config_entries.OptionsFlow):
                         )
                     )
                 elif scan_interval != old_scan_interval:
-                    # track_new/cleanup_enabled/cleanup_days are read live from
-                    # entry.options on every access, so they apply immediately.
-                    # The coordinator's poll timer does not re-read entry.options
-                    # on its own — it must be told explicitly, same as the Poll
-                    # Interval number entity already does.
                     coordinator = self.config_entry.runtime_data
                     if coordinator is not None:
                         coordinator.update_interval = timedelta(seconds=scan_interval)
-                        LOGGER.debug(
-                            "Aruba Device Tracker poll interval updated to %ds"
-                            " via options form",
-                            scan_interval,
-                        )
 
                 return self.async_abort(reason="reconfigure_successful")
 
