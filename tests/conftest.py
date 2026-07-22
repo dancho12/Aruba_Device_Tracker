@@ -35,8 +35,10 @@ def raw_output():
 def client():
     """Return a fresh, unauthenticated ArubaIAPClient."""
     return ArubaIAPClient(
-        host=AP_HOST, username="admin", password="test-password"
-    )  # noqa: S106
+        host=AP_HOST,
+        username="admin",
+        password="test-password",  # noqa: S106
+    )
 
 
 @pytest.fixture
