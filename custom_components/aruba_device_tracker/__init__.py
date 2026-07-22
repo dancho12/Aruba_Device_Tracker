@@ -246,3 +246,11 @@ class ArubaIAPCoordinator(DataUpdateCoordinator):
 
         if removed:
             await self._async_save_last_seen()
+            LOGGER.info(
+                "Aruba Device Tracker: stale device cleanup removed %d device(s)",
+                len(removed),
+            )
+        else:
+            LOGGER.debug(
+                "Aruba Device Tracker: stale device cleanup found no stale devices"
+            )

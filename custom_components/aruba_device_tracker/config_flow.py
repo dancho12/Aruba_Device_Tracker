@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from datetime import timedelta
 from typing import Any
 
 import voluptuous as vol
@@ -60,7 +61,7 @@ class ArubaIAPConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
-    ) -> config_entries.FlowResult:
+    ) -> config_entries.ConfigFlowResult:
         """Handle the initial user step — connection details."""
         errors: dict[str, str] = {}
 
@@ -103,7 +104,7 @@ class ArubaIAPConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_step_tracking(
         self, user_input: dict[str, Any] | None = None
-    ) -> config_entries.FlowResult:
+    ) -> config_entries.ConfigFlowResult:
         """Handle step 2 — tracking and polling preferences."""
         if user_input is not None:
             data = {
@@ -154,7 +155,7 @@ class ArubaIAPOptionsFlow(config_entries.OptionsFlow):
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
-    ) -> config_entries.FlowResult:
+    ) -> config_entries.ConfigFlowResult:
         """Manage the options form."""
         errors: dict[str, str] = {}
         current = self.config_entry.data
@@ -181,33 +182,58 @@ class ArubaIAPOptionsFlow(config_entries.OptionsFlow):
                     errors["base"] = error_key
 
             if not errors:
+                # data holds connection fields only; options holds everything
+                # runtime-changeable. Options here are written via async_update_entry
+                # directly rather than via the return self.async_create_entry(...)
+                # auto-options mechanism, so both dicts land in one call. Keeping
+                # data scoped to connection fields (instead of also duplicating
+                # track_new/scan_interval/cleanup into it, as before) avoids a
+                # stale, unused copy of those settings sitting in entry.data.
+                old_scan_interval = current_options.get(
+                    CONF_SCAN_INTERVAL,
+                    current.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL),
+                )
+
+                data_update = {
+                    CONF_HOST: host,
+                    CONF_USERNAME: username,
+                    CONF_PASSWORD: password,
+                }
+                options_update = {
+                    CONF_TRACK_NEW: track_new,
+                    CONF_SCAN_INTERVAL: scan_interval,
+                    CONF_CLEANUP_ENABLED: cleanup_enabled,
+                    CONF_CLEANUP_DAYS: cleanup_days,
+                }
+
                 self.hass.config_entries.async_update_entry(
                     self.config_entry,
-                    data={
-                        CONF_HOST: host,
-                        CONF_USERNAME: username,
-                        CONF_PASSWORD: password,
-                        CONF_TRACK_NEW: track_new,
-                        CONF_SCAN_INTERVAL: scan_interval,
-                        CONF_CLEANUP_ENABLED: cleanup_enabled,
-                        CONF_CLEANUP_DAYS: cleanup_days,
-                    },
+                    data=data_update,
+                    options=options_update,
                 )
+
+                LOGGER.debug(
+                    "Aruba Device Tracker options updated via options form: "
+                    "track_new=%s, scan_interval=%ds, cleanup_enabled=%s, "
+                    "cleanup_days=%d",
+                    track_new,
+                    scan_interval,
+                    cleanup_enabled,
+                    cleanup_days,
+                )
+
                 if connection_changed:
                     self.hass.async_create_task(
                         self.hass.config_entries.async_reload(
                             self.config_entry.entry_id
                         )
                     )
-                return self.async_create_entry(
-                    title="",
-                    data={
-                        CONF_TRACK_NEW: track_new,
-                        CONF_SCAN_INTERVAL: scan_interval,
-                        CONF_CLEANUP_ENABLED: cleanup_enabled,
-                        CONF_CLEANUP_DAYS: cleanup_days,
-                    },
-                )
+                elif scan_interval != old_scan_interval:
+                    coordinator = self.config_entry.runtime_data
+                    if coordinator is not None:
+                        coordinator.update_interval = timedelta(seconds=scan_interval)
+
+                return self.async_abort(reason="reconfigure_successful")
 
         return self.async_show_form(
             step_id="init",
