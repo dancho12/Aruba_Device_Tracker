@@ -48,12 +48,12 @@ class ArubaCleanupSwitch(SwitchEntity):
 
     _attr_has_entity_name = True
     _attr_icon = "mdi:trash-can-outline"
+    _attr_translation_key = "cleanup_enabled"
 
     def __init__(self, entry: ConfigEntry) -> None:
         """Initialise the cleanup-enabled switch."""
         self._entry = entry
         self._attr_unique_id = f"{entry.entry_id}_cleanup_enabled"
-        self._attr_name = "Auto-Remove Stale Devices"
         self._attr_device_info = get_device_info(entry)
 
     @property

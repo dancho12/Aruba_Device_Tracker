@@ -59,12 +59,12 @@ class ArubaPollIntervalNumber(NumberEntity):
     _attr_native_max_value = MAX_SCAN_INTERVAL
     _attr_native_step = 5
     _attr_native_unit_of_measurement = "s"
+    _attr_translation_key = "poll_interval"
 
     def __init__(self, entry: ConfigEntry) -> None:
         """Initialise the poll interval entity."""
         self._entry = entry
         self._attr_unique_id = f"{entry.entry_id}_poll_interval"
-        self._attr_name = "Poll Interval"
         self._attr_device_info = get_device_info(entry)
 
     @property
@@ -106,12 +106,12 @@ class ArubaCleanupDaysNumber(NumberEntity):
     _attr_native_max_value = MAX_CLEANUP_DAYS
     _attr_native_step = 1
     _attr_native_unit_of_measurement = "d"
+    _attr_translation_key = "cleanup_days"
 
     def __init__(self, entry: ConfigEntry) -> None:
         """Initialise the cleanup days entity."""
         self._entry = entry
         self._attr_unique_id = f"{entry.entry_id}_cleanup_days"
-        self._attr_name = "Auto-Remove Stale Devices After"
         self._attr_device_info = get_device_info(entry)
 
     @property
