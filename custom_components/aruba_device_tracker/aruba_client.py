@@ -361,6 +361,11 @@ class ArubaIAPClient:
                     "essid": match.group("essid"),
                     "access_point": match.group("access_point"),
                     "channel": match.group("channel"),
+                    "type": match.group("type"),
+                    "role": match.group("role"),
+                    "ipv6": (
+                        None if match.group("ipv6") == "--" else match.group("ipv6")
+                    ),
                     "signal": match.group("signal"),
                     "speed": match.group("speed"),
                 }

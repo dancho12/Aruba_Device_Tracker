@@ -111,6 +111,9 @@ class TestGetClientsParsing:
         kitchen = clients["aa:bb:cc:dd:ee:01"]
         assert kitchen["name"] == "Kitchen Echo"
         assert kitchen["ip"] == "192.168.1.50"
+        assert kitchen["type"] == "Wireless"
+        assert kitchen["role"] == "Access"
+        assert kitchen["ipv6"] is None
         assert kitchen["speed"] == "130M"
 
         phone = clients["aa:bb:cc:dd:ee:02"]

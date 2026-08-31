@@ -81,6 +81,11 @@
     }
   },
   "entity": {
+    "button": {
+      "refresh_clients": {
+        "name": "Refresh client list"
+      }
+    },
     "switch": {
       "cleanup_enabled": {
         "name": "Auto-Remove Stale Devices"
@@ -93,6 +98,18 @@
       "cleanup_days": {
         "name": "Auto-Remove Stale Devices After"
       }
+    },
+    "sensor": {
+      "ip_address": { "name": "IP address" },
+      "ipv6_address": { "name": "IPv6 address" },
+      "operating_system": { "name": "Operating system" },
+      "essid": { "name": "Wi-Fi network" },
+      "access_point": { "name": "Access point" },
+      "channel": { "name": "Wi-Fi channel" },
+      "client_type": { "name": "Client type" },
+      "role": { "name": "Role" },
+      "signal": { "name": "Signal" },
+      "link_speed": { "name": "Link speed" }
     }
   }
 }

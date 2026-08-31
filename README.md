@@ -4,6 +4,14 @@ A custom integration for Home Assistant that tracks devices connected to an Arub
 
 > **Disclaimer:** This is an unofficial integration and is not affiliated with or endorsed by Aruba Networks. Use at your own risk.
 
+## Fork Notice
+
+This repository is a personal-use fork of [Jam3s97/Aruba_Device_Tracker](https://github.com/Jam3s97/Aruba_Device_Tracker). Credit for the original integration and its foundation belongs to the upstream author and contributors.
+
+The changes in this fork were developed by [dancho12](https://github.com/dancho12) with assistance from [OpenAI Codex](https://openai.com/codex/).
+
+This fork is maintained primarily for personal use. Updates, compatibility fixes, support, and continued maintenance are not guaranteed. If you need the upstream behavior or broader community support, use the original repository.
+
 ## Features
 
 - **Device Tracker** — marks devices home/away based on Wi-Fi association
@@ -15,11 +23,16 @@ A custom integration for Home Assistant that tracks devices connected to an Arub
   - `ip_address` — current IP address
   - `os` — operating system detected by the IAP
   - `channel` — Wi-Fi channel
+  - `client_type` — client radio/type reported by Aruba (for example `a-HE`)
+  - `role` — Aruba user role assigned to the client
+  - `ipv6_address` — global IPv6 address, when available
   - `signal` — signal strength
   - `speed` — link speed
 - **Config Flow** — set up entirely from the HA UI, no YAML required
 - **Explicit device selection** — choose exactly which discovered clients are exposed to Home Assistant
 - **Native device removal** — remove a tracked client from its Home Assistant device page without it being recreated on the next poll
+- **Manual client refresh** — request an immediate IAP scan from the Aruba IAP device page
+- **Optional client diagnostics** — ten per-client sensors are registered disabled by default and can be enabled individually
 - **Configurable poll interval** — how often the IAP is queried (default 30s, range 10–300s)
 - **Auto-remove stale devices** — automatically remove entities for devices not seen for a configurable number of days
 - **Friendly name renaming** — rename any device via the HA entity registry
@@ -67,13 +80,15 @@ Instant AP# commit apply
 
 All settings and the tracked-device selection are editable after setup via **Configure** on the integration card, including IP address and credentials. Changing the IP or credentials will trigger a reconnection test before saving.
 
-The poll interval and stale device cleanup settings are also available as entities on the IAP device card for quick changes without opening the options flow.
+The poll interval, manual client refresh, and stale device cleanup settings are also available as entities on the IAP device card for quick changes without opening the options flow. After pressing **Refresh client list**, reopen **Configure** to select newly discovered clients.
 
 ## Selecting and Removing Devices
 
 Only clients selected under **Settings → Devices & Services → Aruba Device Tracker → Configure** are exposed as `device_tracker` entities. Clear a selection to remove its entity and device; select it again later to restore it.
 
 Each tracked client is also represented as a native Home Assistant device. The **Delete** action on that device's page removes it from the selected list, so the integration does not recreate it on the next poll. Home Assistant intentionally keeps the delete button disabled on the entity-edit dialog while an integration provides that entity; use the device page or the integration selection instead.
+
+Each selected client also has disabled-by-default diagnostic sensors for IP, IPv6, operating system, Wi-Fi network, access point, channel, client type, role, signal, and link speed. Enable only the sensors you need from the client's device page.
 
 ## Renaming Devices
 

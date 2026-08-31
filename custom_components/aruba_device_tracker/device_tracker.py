@@ -13,9 +13,12 @@ from homeassistant.helpers.device_registry import DeviceInfo, format_mac
 from .const import (
     ATTR_ACCESS_POINT,
     ATTR_CHANNEL,
+    ATTR_CLIENT_TYPE,
     ATTR_ESSID,
     ATTR_IP_ADDRESS,
+    ATTR_IPV6_ADDRESS,
     ATTR_OS,
+    ATTR_ROLE,
     ATTR_SIGNAL,
     ATTR_SPEED,
     CONF_TRACKED_DEVICES,
@@ -252,6 +255,9 @@ class ArubaClientEntity(ScannerEntity):
             ATTR_IP_ADDRESS: data.get("ip"),
             ATTR_OS: data.get("os"),
             ATTR_CHANNEL: data.get("channel"),
+            ATTR_CLIENT_TYPE: data.get("type"),
+            ATTR_ROLE: data.get("role"),
+            ATTR_IPV6_ADDRESS: data.get("ipv6"),
             ATTR_SIGNAL: data.get("signal"),
             ATTR_SPEED: data.get("speed"),
         }

@@ -25,6 +25,9 @@ ATTR_OS = "os"
 ATTR_CHANNEL = "channel"
 ATTR_SIGNAL = "signal"
 ATTR_SPEED = "speed"
+ATTR_CLIENT_TYPE = "client_type"
+ATTR_ROLE = "role"
+ATTR_IPV6_ADDRESS = "ipv6_address"
 
 # Storage key for last-seen timestamps
 STORAGE_KEY = f"{DOMAIN}.last_seen"

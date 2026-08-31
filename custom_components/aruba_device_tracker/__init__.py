@@ -1,7 +1,7 @@
 """
 Aruba Device Tracker — Home Assistant Integration.
 
-https://github.com/Jam3s97/aruba_device_tracker
+https://github.com/dancho12/Aruba_Device_Tracker
 """
 
 from __future__ import annotations
@@ -38,9 +38,11 @@ if TYPE_CHECKING:
 LOGGER = logging.getLogger(__name__)
 
 PLATFORMS: list[Platform] = [
+    Platform.BUTTON,
     Platform.DEVICE_TRACKER,
     Platform.SWITCH,
     Platform.NUMBER,
+    Platform.SENSOR,
 ]
 
 
@@ -162,6 +164,16 @@ async def async_remove_config_entry_device(
         CONF_TRACKED_DEVICES: sorted(selected),
     }
     hass.config_entries.async_update_entry(config_entry, options=new_options)
+
+    entity_registry = er.async_get(hass)
+    sensor_prefix = f"{client_mac}_"
+    for entity in er.async_entries_for_config_entry(
+        entity_registry, config_entry.entry_id
+    ):
+        if entity.unique_id == client_mac or (
+            entity.domain == "sensor" and entity.unique_id.startswith(sensor_prefix)
+        ):
+            entity_registry.async_remove(entity.entity_id)
 
     LOGGER.info(
         "Aruba Device Tracker: excluded %s after manual device removal",

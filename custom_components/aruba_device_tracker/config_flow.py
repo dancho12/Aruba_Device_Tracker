@@ -308,13 +308,18 @@ class ArubaIAPOptionsFlow(config_entries.OptionsFlow):
                 if selection_changed:
                     device_registry = dr.async_get(self.hass)
                     for mac in set(old_tracked) - set(tracked_devices):
-                        entity_id = registry.async_get_entity_id(
-                            "device_tracker", DOMAIN, format_mac(mac)
-                        )
-                        if entity_id:
-                            registry.async_remove(entity_id)
+                        normalised_mac = format_mac(mac)
+                        sensor_prefix = f"{normalised_mac}_"
+                        for entity in er.async_entries_for_config_entry(
+                            registry, self.config_entry.entry_id
+                        ):
+                            if entity.unique_id == normalised_mac or (
+                                entity.domain == "sensor"
+                                and entity.unique_id.startswith(sensor_prefix)
+                            ):
+                                registry.async_remove(entity.entity_id)
                         device = device_registry.async_get_device(
-                            identifiers={(DOMAIN, format_mac(mac))}
+                            identifiers={(DOMAIN, normalised_mac)}
                         )
                         if device:
                             device_registry.async_remove_device(device.id)

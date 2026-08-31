@@ -81,6 +81,11 @@
     }
   },
   "entity": {
+    "button": {
+      "refresh_clients": {
+        "name": "Обновить список клиентов"
+      }
+    },
     "switch": {
       "cleanup_enabled": {
         "name": "Автоудаление неактивных устройств"
@@ -93,6 +98,18 @@
       "cleanup_days": {
         "name": "Срок хранения неактивных устройств"
       }
+    },
+    "sensor": {
+      "ip_address": { "name": "IP-адрес" },
+      "ipv6_address": { "name": "IPv6-адрес" },
+      "operating_system": { "name": "Операционная система" },
+      "essid": { "name": "Сеть Wi-Fi" },
+      "access_point": { "name": "Точка доступа" },
+      "channel": { "name": "Канал Wi-Fi" },
+      "client_type": { "name": "Тип клиента" },
+      "role": { "name": "Роль" },
+      "signal": { "name": "Сигнал" },
+      "link_speed": { "name": "Скорость соединения" }
     }
   }
 }
