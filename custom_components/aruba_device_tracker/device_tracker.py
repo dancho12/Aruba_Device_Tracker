@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any
 from homeassistant.components.device_tracker import ScannerEntity, SourceType
 from homeassistant.core import callback
 from homeassistant.helpers import entity_registry as er
-from homeassistant.helpers.device_registry import format_mac
+from homeassistant.helpers.device_registry import DeviceInfo, format_mac
 
 from .const import (
     ATTR_ACCESS_POINT,
@@ -18,8 +18,8 @@ from .const import (
     ATTR_OS,
     ATTR_SIGNAL,
     ATTR_SPEED,
-    CONF_TRACK_NEW,
-    DEFAULT_TRACK_NEW,
+    CONF_TRACKED_DEVICES,
+    DOMAIN,
 )
 
 if TYPE_CHECKING:
@@ -53,9 +53,19 @@ async def async_setup_entry(
     coordinator: ArubaIAPCoordinator = entry.runtime_data
     tracked: set[str] = set()
 
-    track_new: bool = entry.options.get(
-        CONF_TRACK_NEW,
-        entry.data.get(CONF_TRACK_NEW, DEFAULT_TRACK_NEW),
+    configured_devices = entry.options.get(
+        CONF_TRACKED_DEVICES,
+        entry.data.get(CONF_TRACKED_DEVICES),
+    )
+    # Existing entries created before device selection was added keep all
+    # already-known trackers until the user saves an explicit selection.
+    selected = (
+        {format_mac(mac) for mac in configured_devices}
+        if configured_devices is not None
+        else {
+            *map(format_mac, coordinator.last_seen),
+            *map(format_mac, (coordinator.data or {})),
+        }
     )
 
     # Build a mac -> registry name lookup so offline devices keep their
@@ -79,7 +89,10 @@ async def async_setup_entry(
     # ------------------------------------------------------------------
     startup_entities: list[ArubaClientEntity] = []
 
-    for mac in coordinator.last_seen:
+    for raw_mac in coordinator.last_seen:
+        mac = format_mac(raw_mac)
+        if mac not in selected:
+            continue
         if mac not in tracked:
             tracked.add(mac)
             client_data = (coordinator.data or {}).get(mac, {})
@@ -91,13 +104,15 @@ async def async_setup_entry(
                     entry=entry,
                     mac=mac,
                     initial_name=initial_name,
-                    new_device_defaults_tracked=track_new,
                 )
             )
 
     # Also catch any online devices not yet in last_seen (brand new devices
     # on this very first poll).
-    for mac, client_data in (coordinator.data or {}).items():
+    for raw_mac, client_data in (coordinator.data or {}).items():
+        mac = format_mac(raw_mac)
+        if mac not in selected:
+            continue
         if mac not in tracked:
             tracked.add(mac)
             initial_name = client_data.get("name") or registry_names.get(mac) or mac
@@ -107,7 +122,6 @@ async def async_setup_entry(
                     entry=entry,
                     mac=mac,
                     initial_name=initial_name,
-                    new_device_defaults_tracked=track_new,
                 )
             )
 
@@ -122,7 +136,17 @@ async def async_setup_entry(
         if not coordinator.data:
             return
         new_entities: list[ArubaClientEntity] = []
-        for mac, client_data in coordinator.data.items():
+        selected_now = {
+            format_mac(mac)
+            for mac in entry.options.get(
+                CONF_TRACKED_DEVICES,
+                entry.data.get(CONF_TRACKED_DEVICES, selected),
+            )
+        }
+        for raw_mac, client_data in coordinator.data.items():
+            mac = format_mac(raw_mac)
+            if mac not in selected_now:
+                continue
             if mac not in tracked:
                 tracked.add(mac)
                 new_entities.append(
@@ -131,7 +155,6 @@ async def async_setup_entry(
                         entry=entry,
                         mac=mac,
                         initial_name=client_data.get("name") or mac,
-                        new_device_defaults_tracked=track_new,
                     )
                 )
         if new_entities:
@@ -151,7 +174,6 @@ class ArubaClientEntity(ScannerEntity):
         entry: ConfigEntry,
         mac: str,
         initial_name: str,
-        new_device_defaults_tracked: bool,  # noqa: FBT001
     ) -> None:
         """Initialise the tracker entity."""
         super().__init__()
@@ -162,7 +184,6 @@ class ArubaClientEntity(ScannerEntity):
         # Unique ID uses format_mac-normalised MAC (lowercase colon-separated)
         # per HA unique ID requirements.
         self._attr_unique_id = format_mac(mac)
-        self._new_device_defaults_tracked = new_device_defaults_tracked
         # Set initial connected state synchronously from coordinator data
         # (first_refresh has already completed before async_setup_entry runs).
         self._connected: bool = mac in (coordinator.data or {})
@@ -197,6 +218,14 @@ class ArubaClientEntity(ScannerEntity):
         return self._mac
 
     @property
+    def device_info(self) -> DeviceInfo:
+        """Represent every client as a deletable HA device."""
+        return DeviceInfo(
+            identifiers={(DOMAIN, self._mac)},
+            name=self.hostname or self._attr_name,
+        )
+
+    @property
     def hostname(self) -> str | None:
         """Return the hostname reported by the IAP."""
         if self._coordinator.data is None:
@@ -226,8 +255,3 @@ class ArubaClientEntity(ScannerEntity):
             ATTR_SIGNAL: data.get("signal"),
             ATTR_SPEED: data.get("speed"),
         }
-
-    @property
-    def entity_registry_enabled_default(self) -> bool:
-        """Return whether this entity is enabled when first created."""
-        return self._new_device_defaults_tracked

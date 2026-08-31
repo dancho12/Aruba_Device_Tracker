@@ -18,7 +18,8 @@ A custom integration for Home Assistant that tracks devices connected to an Arub
   - `signal` — signal strength
   - `speed` — link speed
 - **Config Flow** — set up entirely from the HA UI, no YAML required
-- **Track new devices toggle** — choose whether newly discovered devices are tracked by default (off by default)
+- **Explicit device selection** — choose exactly which discovered clients are exposed to Home Assistant
+- **Native device removal** — remove a tracked client from its Home Assistant device page without it being recreated on the next poll
 - **Configurable poll interval** — how often the IAP is queried (default 30s, range 10–300s)
 - **Auto-remove stale devices** — automatically remove entities for devices not seen for a configurable number of days
 - **Friendly name renaming** — rename any device via the HA entity registry
@@ -56,17 +57,23 @@ Instant AP# commit apply
    - **IP Address** — your IAP or Virtual Controller IP (e.g. `192.168.1.10`)
    - **Username** — IAP admin username
    - **Password** — IAP admin password
-4. **Step 2 — Tracking & Polling:**
-   - **Track new devices by default** — when on, newly discovered devices are immediately tracked; when off, their entities are created but disabled until you enable them manually
+4. **Step 2 — Polling & Cleanup:**
    - **Poll interval** — how often the IAP is queried in seconds (default 30s)
    - **Auto-Remove Stale Devices** — automatically remove entities for devices not seen for a set number of days (default: on)
    - **Auto-Remove Stale Devices After** — number of days of inactivity before an entity is removed (default: 30 days)
+5. **Step 3 — Devices:** select the Aruba clients that should have `device_tracker` entities. Unselected and newly discovered clients remain available in the integration options.
 
 ## Options
 
-All settings are editable after setup via **Configure** on the integration card, including IP address and credentials. Changing the IP or credentials will trigger a reconnection test before saving.
+All settings and the tracked-device selection are editable after setup via **Configure** on the integration card, including IP address and credentials. Changing the IP or credentials will trigger a reconnection test before saving.
 
-The poll interval, track new devices toggle, and stale device cleanup settings are also available as entities on the IAP device card for quick changes without opening the options flow.
+The poll interval and stale device cleanup settings are also available as entities on the IAP device card for quick changes without opening the options flow.
+
+## Selecting and Removing Devices
+
+Only clients selected under **Settings → Devices & Services → Aruba Device Tracker → Configure** are exposed as `device_tracker` entities. Clear a selection to remove its entity and device; select it again later to restore it.
+
+Each tracked client is also represented as a native Home Assistant device. The **Delete** action on that device's page removes it from the selected list, so the integration does not recreate it on the next poll. Home Assistant intentionally keeps the delete button disabled on the entity-edit dialog while an integration provides that entity; use the device page or the integration selection instead.
 
 ## Renaming Devices
 

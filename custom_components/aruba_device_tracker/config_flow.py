@@ -10,17 +10,25 @@ import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers.device_registry import format_mac
+from homeassistant.helpers.selector import (
+    SelectOptionDict,
+    SelectSelector,
+    SelectSelectorConfig,
+    SelectSelectorMode,
+)
 
 from .aruba_client import ArubaIAPClient
 from .const import (
     CONF_CLEANUP_DAYS,
     CONF_CLEANUP_ENABLED,
     CONF_SCAN_INTERVAL,
-    CONF_TRACK_NEW,
+    CONF_TRACKED_DEVICES,
     DEFAULT_CLEANUP_DAYS,
     DEFAULT_CLEANUP_ENABLED,
     DEFAULT_SCAN_INTERVAL,
-    DEFAULT_TRACK_NEW,
     DOMAIN,
     MAX_CLEANUP_DAYS,
     MAX_SCAN_INTERVAL,
@@ -31,27 +39,53 @@ from .const import (
 LOGGER = logging.getLogger(__name__)
 
 
+def _device_select_options(
+    devices: dict[str, dict[str, Any]],
+    stored_names: dict[str, str] | None = None,
+) -> list[SelectOptionDict]:
+    """Build friendly, stable options for the device multi-select."""
+    stored_names = stored_names or {}
+    options = []
+    for mac in sorted(devices):
+        normalised_mac = format_mac(mac)
+        name = devices[mac].get("name") or stored_names.get(normalised_mac)
+        label = f"{name} ({normalised_mac})" if name else normalised_mac
+        options.append(SelectOptionDict(value=normalised_mac, label=label))
+    return options
+
+
+def _device_selector(options: list[SelectOptionDict]) -> SelectSelector:
+    """Return the native HA multi-select used for tracked clients."""
+    return SelectSelector(
+        SelectSelectorConfig(
+            options=options,
+            multiple=True,
+            mode=SelectSelectorMode.DROPDOWN,
+        )
+    )
+
+
 async def _test_connection(
     hass: HomeAssistant,
     host: str,
     username: str,
     password: str,
-) -> str | None:
-    """Test connectivity and API privilege. Returns None on success or an error key."""
+) -> tuple[str | None, dict[str, dict[str, Any]]]:
+    """Test connectivity and return an error key plus discovered clients."""
     client = ArubaIAPClient(host=host, username=username, password=password)
     try:
         logged_in = await hass.async_add_executor_job(client.login)
         if not logged_in:
-            return "invalid_auth"
+            return "invalid_auth", {}
         clients = await hass.async_add_executor_job(client.get_clients)
         await hass.async_add_executor_job(client.logout)
         if clients is None:
-            return "api_access_denied"
+            return "api_access_denied", {}
     except Exception:
         LOGGER.debug("Aruba IAP connection test exception", exc_info=True)
-        return "cannot_connect"
+        return "cannot_connect", {}
     else:
-        return None
+        return None, clients
 
 
 class ArubaIAPConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -73,7 +107,9 @@ class ArubaIAPConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             await self.async_set_unique_id(host)
             self._abort_if_unique_id_configured()
 
-            error_key = await _test_connection(self.hass, host, username, password)
+            error_key, clients = await _test_connection(
+                self.hass, host, username, password
+            )
             if error_key:
                 errors["base"] = error_key
             else:
@@ -82,6 +118,7 @@ class ArubaIAPConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     CONF_USERNAME: username,
                     CONF_PASSWORD: password,
                 }
+                self._discovered_clients = clients
                 return await self.async_step_tracking()
 
         return self.async_show_form(
@@ -107,23 +144,17 @@ class ArubaIAPConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     ) -> config_entries.ConfigFlowResult:
         """Handle step 2 — tracking and polling preferences."""
         if user_input is not None:
-            data = {
-                **self._connection_data,
-                CONF_TRACK_NEW: user_input[CONF_TRACK_NEW],
+            self._tracking_data = {
                 CONF_SCAN_INTERVAL: user_input[CONF_SCAN_INTERVAL],
                 CONF_CLEANUP_ENABLED: user_input[CONF_CLEANUP_ENABLED],
                 CONF_CLEANUP_DAYS: user_input[CONF_CLEANUP_DAYS],
             }
-            return self.async_create_entry(
-                title=f"Aruba IAP ({self._connection_data[CONF_HOST]})",
-                data=data,
-            )
+            return await self.async_step_devices()
 
         return self.async_show_form(
             step_id="tracking",
             data_schema=vol.Schema(
                 {
-                    vol.Optional(CONF_TRACK_NEW, default=DEFAULT_TRACK_NEW): bool,
                     vol.Optional(
                         CONF_SCAN_INTERVAL, default=DEFAULT_SCAN_INTERVAL
                     ): vol.All(
@@ -141,6 +172,35 @@ class ArubaIAPConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             ),
         )
 
+    async def async_step_devices(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.ConfigFlowResult:
+        """Let the user explicitly choose which discovered clients to expose."""
+        if user_input is not None:
+            tracked_devices = sorted(
+                format_mac(mac) for mac in user_input.get(CONF_TRACKED_DEVICES, [])
+            )
+            data = {
+                **self._connection_data,
+                **self._tracking_data,
+                CONF_TRACKED_DEVICES: tracked_devices,
+            }
+            return self.async_create_entry(
+                title=f"Aruba IAP ({self._connection_data[CONF_HOST]})",
+                data=data,
+            )
+
+        return self.async_show_form(
+            step_id="devices",
+            data_schema=vol.Schema(
+                {
+                    vol.Optional(CONF_TRACKED_DEVICES, default=[]): _device_selector(
+                        _device_select_options(self._discovered_clients)
+                    )
+                }
+            ),
+        )
+
     @staticmethod
     @callback
     def async_get_options_flow(
@@ -153,7 +213,7 @@ class ArubaIAPConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 class ArubaIAPOptionsFlow(config_entries.OptionsFlow):
     """Options flow — change host/credentials/tracking/polling after setup."""
 
-    async def async_step_init(
+    async def async_step_init(  # noqa: PLR0912
         self, user_input: dict[str, Any] | None = None
     ) -> config_entries.ConfigFlowResult:
         """Manage the options form."""
@@ -165,7 +225,6 @@ class ArubaIAPOptionsFlow(config_entries.OptionsFlow):
             host = user_input[CONF_HOST].strip()
             username = user_input[CONF_USERNAME].strip()
             password = user_input[CONF_PASSWORD]
-            track_new = user_input[CONF_TRACK_NEW]
             scan_interval = user_input[CONF_SCAN_INTERVAL]
             cleanup_enabled = user_input[CONF_CLEANUP_ENABLED]
             cleanup_days = user_input[CONF_CLEANUP_DAYS]
@@ -177,7 +236,9 @@ class ArubaIAPOptionsFlow(config_entries.OptionsFlow):
             )
 
             if connection_changed:
-                error_key = await _test_connection(self.hass, host, username, password)
+                error_key, _ = await _test_connection(
+                    self.hass, host, username, password
+                )
                 if error_key:
                     errors["base"] = error_key
 
@@ -187,11 +248,32 @@ class ArubaIAPOptionsFlow(config_entries.OptionsFlow):
                 # directly rather than via the return self.async_create_entry(...)
                 # auto-options mechanism, so both dicts land in one call. Keeping
                 # data scoped to connection fields (instead of also duplicating
-                # track_new/scan_interval/cleanup into it, as before) avoids a
+                # scan_interval/cleanup into it, as before) avoids a
                 # stale, unused copy of those settings sitting in entry.data.
                 old_scan_interval = current_options.get(
                     CONF_SCAN_INTERVAL,
                     current.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL),
+                )
+
+                coordinator = self.config_entry.runtime_data
+                live_devices = dict((coordinator.data or {}) if coordinator else {})
+                known_macs = set(coordinator.last_seen if coordinator else {})
+                known_macs.update(live_devices)
+
+                registry = er.async_get(self.hass)
+                for entity in er.async_entries_for_config_entry(
+                    registry, self.config_entry.entry_id
+                ):
+                    if entity.domain != "device_tracker":
+                        continue
+                    known_macs.add(format_mac(entity.unique_id))
+
+                old_tracked = current_options.get(
+                    CONF_TRACKED_DEVICES,
+                    current.get(CONF_TRACKED_DEVICES, sorted(known_macs)),
+                )
+                tracked_devices = sorted(
+                    format_mac(mac) for mac in user_input.get(CONF_TRACKED_DEVICES, [])
                 )
 
                 data_update = {
@@ -200,10 +282,10 @@ class ArubaIAPOptionsFlow(config_entries.OptionsFlow):
                     CONF_PASSWORD: password,
                 }
                 options_update = {
-                    CONF_TRACK_NEW: track_new,
                     CONF_SCAN_INTERVAL: scan_interval,
                     CONF_CLEANUP_ENABLED: cleanup_enabled,
                     CONF_CLEANUP_DAYS: cleanup_days,
+                    CONF_TRACKED_DEVICES: tracked_devices,
                 }
 
                 self.hass.config_entries.async_update_entry(
@@ -214,15 +296,30 @@ class ArubaIAPOptionsFlow(config_entries.OptionsFlow):
 
                 LOGGER.debug(
                     "Aruba Device Tracker options updated via options form: "
-                    "track_new=%s, scan_interval=%ds, cleanup_enabled=%s, "
+                    "scan_interval=%ds, cleanup_enabled=%s, "
                     "cleanup_days=%d",
-                    track_new,
                     scan_interval,
                     cleanup_enabled,
                     cleanup_days,
                 )
 
-                if connection_changed:
+                selection_changed = set(old_tracked) != set(tracked_devices)
+
+                if selection_changed:
+                    device_registry = dr.async_get(self.hass)
+                    for mac in set(old_tracked) - set(tracked_devices):
+                        entity_id = registry.async_get_entity_id(
+                            "device_tracker", DOMAIN, format_mac(mac)
+                        )
+                        if entity_id:
+                            registry.async_remove(entity_id)
+                        device = device_registry.async_get_device(
+                            identifiers={(DOMAIN, format_mac(mac))}
+                        )
+                        if device:
+                            device_registry.async_remove_device(device.id)
+
+                if connection_changed or selection_changed:
                     self.hass.async_create_task(
                         self.hass.config_entries.async_reload(
                             self.config_entry.entry_id
@@ -246,13 +343,6 @@ class ArubaIAPOptionsFlow(config_entries.OptionsFlow):
                     vol.Required(
                         CONF_PASSWORD, default=current.get(CONF_PASSWORD, "")
                     ): str,
-                    vol.Optional(
-                        CONF_TRACK_NEW,
-                        default=current_options.get(
-                            CONF_TRACK_NEW,
-                            current.get(CONF_TRACK_NEW, DEFAULT_TRACK_NEW),
-                        ),
-                    ): bool,
                     vol.Optional(
                         CONF_SCAN_INTERVAL,
                         default=current_options.get(
@@ -278,7 +368,48 @@ class ArubaIAPOptionsFlow(config_entries.OptionsFlow):
                     ): vol.All(
                         int, vol.Range(min=MIN_CLEANUP_DAYS, max=MAX_CLEANUP_DAYS)
                     ),
+                    vol.Optional(
+                        CONF_TRACKED_DEVICES,
+                        default=self._current_tracked_devices(),
+                    ): _device_selector(self._current_device_options()),
                 }
             ),
             errors=errors,
         )
+
+    def _known_devices(self) -> tuple[dict[str, dict[str, Any]], dict[str, str]]:
+        """Return every known client and registry name for the options form."""
+        coordinator = self.config_entry.runtime_data
+        devices = dict((coordinator.data or {}) if coordinator else {})
+        for mac in coordinator.last_seen if coordinator else {}:
+            devices.setdefault(format_mac(mac), {})
+
+        registry = er.async_get(self.hass)
+        stored_names: dict[str, str] = {}
+        for entity in er.async_entries_for_config_entry(
+            registry, self.config_entry.entry_id
+        ):
+            if entity.domain != "device_tracker":
+                continue
+            mac = format_mac(entity.unique_id)
+            devices.setdefault(mac, {})
+            name = entity.name or entity.original_name
+            if name:
+                stored_names[mac] = name
+        return devices, stored_names
+
+    def _current_tracked_devices(self) -> list[str]:
+        """Return explicit selection, preserving all clients for old entries."""
+        devices, _ = self._known_devices()
+        configured = self.config_entry.options.get(
+            CONF_TRACKED_DEVICES,
+            self.config_entry.data.get(CONF_TRACKED_DEVICES),
+        )
+        return sorted(configured if configured is not None else devices)
+
+    def _current_device_options(self) -> list[SelectOptionDict]:
+        """Return choices for the options form."""
+        devices, stored_names = self._known_devices()
+        for mac in self._current_tracked_devices():
+            devices.setdefault(mac, {})
+        return _device_select_options(devices, stored_names)

@@ -15,13 +15,26 @@
       },
       "tracking": {
         "title": "Tracking & Polling",
-        "description": "**Track new devices by default?**\n\n- **On** — new devices are automatically tracked as soon as they are discovered.\n- **Off** — new devices are discovered but their tracker entities will be **disabled** in HA. You can enable them individually in Settings → Devices & Services.\n\nHow often to query the IAP for connected clients. Min 10s, max 300s.\n\nBoth settings can be changed at any time.",
+        "description": "Configure polling and automatic cleanup. You will choose the clients exposed to Home Assistant on the next step.",
         "data": {
-          "track_new_devices": "Track new devices by default",
-          "scan_interval": "Poll interval (seconds)"
+          "scan_interval": "Poll interval (seconds)",
+          "cleanup_enabled": "Auto-Remove Stale Devices",
+          "cleanup_days": "Auto-Remove Stale Devices After (days)"
         },
         "data_description": {
-          "scan_interval": "How often to query the IAP for connected clients. Min 10s, max 300s."
+          "scan_interval": "How often to query the IAP for connected clients. Min 10s, max 300s.",
+          "cleanup_enabled": "Automatically remove devices not seen for the configured number of days.",
+          "cleanup_days": "Number of days without activity before a device entity is removed."
+        }
+      },
+      "devices": {
+        "title": "Select devices to track",
+        "description": "Only selected clients will be created as device tracker entities. Newly discovered clients remain available here and are not added automatically.",
+        "data": {
+          "tracked_devices": "Available devices"
+        },
+        "data_description": {
+          "tracked_devices": "Select every Aruba client that should be visible in Home Assistant. Leave empty to expose none."
         }
       }
     },
@@ -39,17 +52,21 @@
     "step": {
       "init": {
         "title": "Aruba IAP Settings",
-        "description": "Update connection details or change tracking and polling preferences.\n\nIf you change the IP address, username, or password the connection will be tested before saving.",
+        "description": "Update connection details, polling, cleanup, and the clients exposed to Home Assistant. Unselected clients remain discoverable and can be selected later.",
         "data": {
           "host": "IP Address",
           "username": "Username",
           "password": "Password",
-          "track_new_devices": "Track new devices by default",
-          "scan_interval": "Poll interval (seconds)"
+          "scan_interval": "Poll interval (seconds)",
+          "cleanup_enabled": "Auto-Remove Stale Devices",
+          "cleanup_days": "Auto-Remove Stale Devices After (days)",
+          "tracked_devices": "Available devices"
         },
         "data_description": {
-          "track_new_devices": "When off, new devices are discovered but their entities are disabled until you enable them manually.",
-          "scan_interval": "How often to query the IAP for connected clients. Min 10s, max 300s."
+          "scan_interval": "How often to query the IAP for connected clients. Min 10s, max 300s.",
+          "cleanup_enabled": "Automatically remove devices not seen for the configured number of days.",
+          "cleanup_days": "Number of days without activity before a device entity is removed.",
+          "tracked_devices": "Only selected clients get a device tracker entity. Removing a selection deletes its entity; select it again to restore it."
         }
       }
     },
@@ -61,6 +78,21 @@
     },
     "abort": {
       "reconfigure_successful": "Settings saved."
+    }
+  },
+  "entity": {
+    "switch": {
+      "cleanup_enabled": {
+        "name": "Auto-Remove Stale Devices"
+      }
+    },
+    "number": {
+      "poll_interval": {
+        "name": "Poll Interval"
+      },
+      "cleanup_days": {
+        "name": "Auto-Remove Stale Devices After"
+      }
     }
   }
 }

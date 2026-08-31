@@ -2,12 +2,11 @@
 
 DOMAIN = "aruba_device_tracker"
 
-CONF_TRACK_NEW = "track_new_devices"
 CONF_SCAN_INTERVAL = "scan_interval"
 CONF_CLEANUP_ENABLED = "cleanup_enabled"
 CONF_CLEANUP_DAYS = "cleanup_days"
+CONF_TRACKED_DEVICES = "tracked_devices"
 
-DEFAULT_TRACK_NEW = False
 DEFAULT_PORT = 4343
 DEFAULT_SCAN_INTERVAL = 30  # seconds
 MIN_SCAN_INTERVAL = 10

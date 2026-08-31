@@ -11,6 +11,7 @@ from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 
 from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_USERNAME, Platform
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.device_registry import format_mac
 from homeassistant.helpers.storage import Store
@@ -21,6 +22,7 @@ from .const import (
     CONF_CLEANUP_DAYS,
     CONF_CLEANUP_ENABLED,
     CONF_SCAN_INTERVAL,
+    CONF_TRACKED_DEVICES,
     DEFAULT_CLEANUP_DAYS,
     DEFAULT_CLEANUP_ENABLED,
     DEFAULT_SCAN_INTERVAL,
@@ -78,12 +80,21 @@ async def async_setup_entry(
 
     entry.runtime_data = coordinator
 
+    # Device selection replaces the legacy "track new devices" switch. Remove
+    # its registry entry during upgrade so it does not remain as unavailable.
+    entity_registry = er.async_get(hass)
+    legacy_switch = entity_registry.async_get_entity_id(
+        "switch", DOMAIN, f"{entry.entry_id}_track_new_devices"
+    )
+    if legacy_switch:
+        entity_registry.async_remove(legacy_switch)
+
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     # NOTE: No update_listener / async_reload_entry registered here.
     #
-    # All runtime-changeable settings (poll interval, track_new, cleanup
-    # on/off, cleanup days) are applied live by their respective entity
+    # Runtime-changeable settings (poll interval and cleanup settings) are
+    # applied live by their respective entity
     # handlers without needing a full integration reload.
     #
     # A reload IS required when credentials or host change, but that is
@@ -107,6 +118,57 @@ async def async_unload_entry(
     coordinator: ArubaIAPCoordinator = entry.runtime_data
     await hass.async_add_executor_job(coordinator.client.logout)
     return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+
+
+async def async_remove_config_entry_device(
+    hass: HomeAssistant,
+    config_entry: ConfigEntry,
+    device_entry: dr.DeviceEntry,
+) -> bool:
+    """Remove a selected client through Home Assistant's device UI."""
+    coordinator: ArubaIAPCoordinator = config_entry.runtime_data
+    known_macs = {
+        *map(format_mac, coordinator.last_seen),
+        *map(format_mac, (coordinator.data or {})),
+    }
+    configured = config_entry.options.get(
+        CONF_TRACKED_DEVICES,
+        config_entry.data.get(CONF_TRACKED_DEVICES),
+    )
+    selected = (
+        {format_mac(mac) for mac in configured}
+        if configured is not None
+        else set(known_macs)
+    )
+
+    client_mac: str | None = None
+    for domain, identifier in device_entry.identifiers:
+        if domain != DOMAIN or identifier == config_entry.entry_id:
+            continue
+        try:
+            normalised = format_mac(identifier)
+        except ValueError:
+            continue
+        if normalised in known_macs | selected:
+            client_mac = normalised
+            break
+    if client_mac is None:
+        # Do not allow deletion of the IAP control device from this handler.
+        return False
+
+    selected.discard(client_mac)
+    new_options = {
+        **config_entry.options,
+        CONF_TRACKED_DEVICES: sorted(selected),
+    }
+    hass.config_entries.async_update_entry(config_entry, options=new_options)
+
+    LOGGER.info(
+        "Aruba Device Tracker: excluded %s after manual device removal",
+        client_mac,
+    )
+    hass.async_create_task(hass.config_entries.async_reload(config_entry.entry_id))
+    return True
 
 
 class ArubaIAPCoordinator(DataUpdateCoordinator):
